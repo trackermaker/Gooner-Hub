@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LeetCode Peer-Track</title>
+  <link rel="stylesheet" href="styles.css">
+  
+  <!-- Firebase SDKs for Cloud Sync -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+</head>
+<body>
+  <div class="container">
+    
+    <!-- Auth Card -->
+    <div id="auth-card" class="card">
+      <div class="brand">
+  <div class="logo-icon">
+    <span class="logo-g">G</span>
+    <span class="logo-hub">Hub</span>
+  </div>
+  <h2>Gooner Hub</h2>
+</div>
+
+
+      <div class="auth-tabs">
+        <button id="tab-login" class="tab-btn active">Log In</button>
+        <button id="tab-register" class="tab-btn">Register</button>
+        <button id="tab-forgot" class="tab-btn">Recover</button>
+      </div>
+
+      <!-- Login Form -->
+      <form id="login-form" class="auth-form">
+        <div class="input-group">
+          <label for="login-username">Goonername</label>
+          <input type="text" id="login-username" placeholder="Enter your username" required>
+        </div>
+        <div class="input-group">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" placeholder="Enter your password" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Log In</button>
+      </form>
+
+      <!-- Register Form -->
+      <form id="register-form" class="auth-form hidden">
+        <div class="input-group">
+          <label for="reg-username">Goonername</label>
+          <input type="text" id="reg-username" placeholder="Min. 5 characters" required minlength="5">
+          <span id="username-status" class="status-hint"></span>
+        </div>
+        <div class="input-group">
+          <label for="reg-password">Password</label>
+          <input type="password" id="reg-password" placeholder="Create password" required>
+        </div>
+        <div class="input-group">
+          <label for="reg-confirm-password">Confirm Password</label>
+          <input type="password" id="reg-confirm-password" placeholder="Confirm password" required>
+        </div>
+        <div class="input-group">
+          <label for="reg-bestfriend">Best Friend's Goonername <span class="help-text">(Sends Request on Register)</span></label>
+          <input type="text" id="reg-bestfriend" placeholder="Friend's username (optional)">
+        </div>
+        <button type="submit" class="btn btn-primary">Create Account</button>
+      </form>
+
+      <!-- Forgot Password Form -->
+      <form id="forgot-form" class="auth-form hidden">
+        <div id="recovery-step-1">
+          <div class="input-group">
+            <label for="recover-username">Your Goonername</label>
+            <input type="text" id="recover-username" placeholder="Enter your username" required>
+          </div>
+          <button type="button" id="send-otp-btn" class="btn btn-secondary">Request OTP via Best Friend</button>
+        </div>
+
+        <div id="recovery-step-2" class="hidden">
+          <div class="info-banner">An OTP code has been sent to your best friend's inbox!</div>
+          <div class="input-group">
+            <label for="recover-otp">6-Digit OTP Code</label>
+            <input type="text" id="recover-otp" placeholder="Enter code" required maxlength="6">
+          </div>
+          <div class="input-group">
+            <label for="recover-new-pass">New Password</label>
+            <input type="password" id="recover-new-pass" placeholder="Enter new password" required>
+          </div>
+          <div class="input-group">
+            <label for="recover-confirm-pass">Confirm Password</label>
+            <input type="password" id="recover-confirm-pass" placeholder="Confirm new password" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Reset Password</button>
+        </div>
+      </form>
+
+      <div id="auth-message" class="message-box hidden"></div>
+    </div>
+
+    <!-- Main App Layout -->
+    <div id="main-app" class="card dashboard hidden">
+      <div class="app-header">
+        <div class="user-info">
+          <h2><span id="user-display"></span></h2>
+        </div>
+        
+        <div class="top-icon-group">
+          <button id="icon-links-btn" class="icon-btn" title="Links Menu">🔗</button>
+          <button id="icon-notif-btn" class="icon-btn" title="Notifications">
+            🔔 <span id="notif-badge" class="badge">0</span>
+          </button>
+          <button id="icon-settings-btn" class="icon-btn" title="Settings">⚙️</button>
+        </div>
+      </div>
+
+      <nav class="nav-dashboards">
+        <button id="nav-home" class="nav-btn active">🏠 Home</button>
+        <button id="nav-users-leaderboard" class="nav-btn">📊 Gooners Ranks</button>
+        <button id="nav-links-leaderboard" class="nav-btn">🔥 Top Links</button>
+      </nav>
+
+      <!-- HOME VIEW -->
+      <div id="view-home" class="dashboard-view">
+        <div class="stat-box single-stat">
+          <span class="stat-label">Gooned</span>
+          <span id="user-solved-count" class="stat-number">0</span>
+          <span class="stat-label">Times</span>
+        </div>
+
+        <div class="action-section">
+          <h3>Submit Gooned Proof Video Links</h3>
+          <p class="section-desc">Can't proceed without links !</p>
+          
+          <form id="solve-question-form">
+            <div id="dynamic-links-container">
+              <div class="link-input-row">
+                <input type="url" class="question-link-field" placeholder="https://pornhub.com/sunnyleone..." required>
+                <button type="button" class="btn-remove-link hidden" onclick="removeLinkInput(this)">-</button>
+              </div>
+            </div>
+
+            <button type="button" id="add-link-btn" class="btn btn-secondary btn-sm link-add-more">+ Add Another Link</button>
+            <button type="submit" class="btn btn-add btn-submit-links">Submit Proof & Update Count</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- USERS LEADERBOARD VIEW -->
+      <div id="view-users-leaderboard" class="dashboard-view hidden">
+        <div class="stat-box highlight">
+          <span class="stat-label">Top Gooner Spotlight</span>
+          <p id="top-gooner-banner" class="top-gooner-text">No user data available yet.</p>
+        </div>
+
+        <div class="leaderboard-section">
+          <h3>Gooners Rankings</h3>
+          <table class="leaderboard-table">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Gooner</th>
+                <th>Times Gooned</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- LINKS LEADERBOARD VIEW -->
+      <div id="view-links-leaderboard" class="dashboard-view hidden">
+        <div class="stat-box highlight">
+          <span class="stat-label">🔥 Most Liked Video Link</span>
+          <div id="top-liked-link-banner" class="top-gooner-text">No Video links submitted yet.</div>
+        </div>
+
+        <div class="leaderboard-section">
+          <h3>Most Liked Video Links</h3>
+          <div id="links-leaderboard-list" class="links-leaderboard-feed"></div>
+        </div>
+      </div>
+
+      <!-- LINKS DRAWER -->
+      <div id="links-drawer" class="drawer-overlay hidden">
+        <div class="drawer-card">
+          <div class="drawer-header">
+            <h3>🔗 Video Links Explorer</h3>
+            <button id="close-links-drawer" class="btn-close">✕</button>
+          </div>
+
+          <div class="sub-tabs">
+            <button id="subtab-all-links" class="subtab-btn active">All Links</button>
+            <button id="subtab-your-links" class="subtab-btn">Your Links</button>
+            <button id="subtab-saved-links" class="subtab-btn">Saved Links</button>
+          </div>
+
+          <div id="drawer-links-content" class="links-leaderboard-feed"></div>
+        </div>
+      </div>
+
+      <!-- NOTIFICATIONS DRAWER -->
+      <div id="notifications-drawer" class="drawer-overlay hidden">
+        <div class="drawer-card">
+          <div class="drawer-header">
+            <h3>🔔 Inbox & Activity</h3>
+            <button id="close-notif-drawer" class="btn-close">✕</button>
+          </div>
+          <span class="incognito-tip">💡 Tip: Copy link to view in Incognito Mode</span>
+          <div id="notifications-list" class="notifications-list"></div>
+        </div>
+      </div>
+
+      <!-- SETTINGS DRAWER -->
+      <div id="settings-drawer" class="drawer-overlay hidden">
+        <div class="drawer-card">
+          <div class="drawer-header">
+            <h3>⚙️ Settings</h3>
+            <button id="close-settings-drawer" class="btn-close">✕</button>
+          </div>
+
+          <form id="change-username-form" class="change-user-form">
+            <div class="input-group">
+              <label for="new-username-input">Change Goonername <span class="help-text">(Max 2 changes per month)</span></label>
+              <input type="text" id="new-username-input" placeholder="Min 5 characters" required minlength="5">
+              <span id="new-user-status" class="status-hint"></span>
+            </div>
+            <button type="button" id="trigger-change-username-btn" class="btn btn-primary">Update Goonername</button>
+          </form>
+
+          <hr class="divider">
+
+          <div class="settings-bf-section">
+            <h4>Best Friend Status</h4>
+            <p class="current-bf-info">Current Best Friend: <strong id="current-bf-display">None</strong></p>
+            
+            <form id="change-bf-form" class="change-bf-form">
+              <div class="input-group">
+                <label for="new-bf-input">Send Best Friend Request</label>
+                <input type="text" id="new-bf-input" placeholder="Enter friend's username">
+              </div>
+              <button type="button" id="trigger-change-bf-btn" class="btn btn-secondary btn-sm">Send Best Friend Request</button>
+            </form>
+            <button id="break-friendship-btn" class="btn btn-secondary btn-sm btn-break hidden">Break Friendship Connection</button>
+          </div>
+
+          <hr class="divider">
+
+          <div class="account-actions-section">
+            <button id="logout-btn" class="btn btn-danger">Log Out Account</button>
+            
+            <div class="delete-box">
+              <button id="toggle-delete-box-btn" class="btn btn-danger-outline">Delete Account</button>
+              
+              <div id="delete-account-form-container" class="delete-form hidden">
+                <p class="delete-warning">⚠️ Permanent Deletion Requires Double Password Confirmation:</p>
+                <div class="input-group">
+                  <label for="del-pass-1">Password</label>
+                  <input type="password" id="del-pass-1" placeholder="Enter password" required>
+                </div>
+                <div class="input-group">
+                  <label for="del-pass-2">Confirm Password Again</label>
+                  <input type="password" id="del-pass-2" placeholder="Re-enter password" required>
+                </div>
+                <button type="button" id="trigger-delete-account-btn" class="btn btn-danger">Permanently Delete Account</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- GLOBAL CONFIRMATION MODAL POPUP -->
+    <div id="confirm-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <h3 id="modal-title">Confirm Action</h3>
+        <p id="modal-message">Are you sure you want to proceed?</p>
+        <div class="modal-actions">
+          <button id="modal-cancel-btn" class="btn btn-secondary btn-sm">Cancel</button>
+          <button id="modal-confirm-btn" class="btn btn-primary btn-sm">Confirm</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
