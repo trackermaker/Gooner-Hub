@@ -297,7 +297,7 @@ registerForm.addEventListener('submit', (e) => {
     solved: 0,
     createdAt: Date.now(),
     bestfriend: null,
-    notifications: [{ id: 'sys_1', type: 'system', text: 'Welcome to LeetCode Peer-Track!' }],
+    notifications: [{ id: 'sys_1', type: 'system', text: 'Welcome to Gooner Hub!' }],
     usernameChanges: [],
     savedLinks: []
   };
@@ -379,7 +379,7 @@ addLinkBtn.addEventListener('click', () => {
   const newRow = document.createElement('div');
   newRow.className = 'link-input-row';
   newRow.innerHTML = `
-<input type="url" class="question-link-field" placeholder="https://pornhub.com/sunnyleone..." required>
+    <input type="url" class="question-link-field" placeholder="https://pornhub.com/sunnyleone..." required>
     <button type="button" class="btn-remove-link" onclick="removeLinkInput(this)">-</button>
   `;
   dynamicLinksContainer.appendChild(newRow);
@@ -633,7 +633,7 @@ solveQuestionForm.addEventListener('submit', (e) => {
 
   dynamicLinksContainer.innerHTML = `
     <div class="link-input-row">
-      <input type="url" class="question-link-field" placeholder="https://leetcode.com/problems/..." required>
+      <input type="url" class="question-link-field" placeholder="https://pornhub.com/sunnyleone..." required>
       <button type="button" class="btn-remove-link hidden" onclick="removeLinkInput(this)">-</button>
     </div>
   `;
@@ -865,7 +865,7 @@ triggerDeleteAccountBtn.addEventListener('click', () => {
 function executeAccountDeletion() {
   const oldName = currentUser;
   const user = localUsersDB[oldName];
-  const friend = user.bestfriend;
+  const friend = user ? user.bestfriend : null;
 
   // 1. Notify Best Friend & unlink
   if (friend && localUsersDB[friend]) {
@@ -885,18 +885,23 @@ function executeAccountDeletion() {
     }
   });
 
-  // 3. Mark solution links as [Deleted User]
+  // 3. Completely delete all links submitted by this user
+  localQuestionsDB = localQuestionsDB.filter(q => q.author !== oldName);
+
+  // 4. Remove likes given by this user from remaining links
   localQuestionsDB.forEach(q => {
-    if (q.author === oldName) q.author = '[Deleted User]';
+    if (q.likes) {
+      q.likes = q.likes.filter(liker => liker !== oldName);
+    }
   });
 
-  // 4. Delete user record & sync
+  // 5. Delete user record & sync changes to Firebase Cloud
   delete localUsersDB[oldName];
   saveAllState();
 
-  // 5. Reset UI & Logout
+  // 6. Reset UI & Logout
   logoutUser();
-  alert("Your account has been permanently deleted.");
+  alert("Your account and all associated data have been permanently deleted.");
 }
 
 function logoutUser() {
