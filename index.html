@@ -227,6 +227,25 @@
 
           <hr class="divider">
 
+          <form id="change-password-form" class="change-pass-form">
+            <h4>Change Password</h4>
+            <div class="input-group">
+              <label for="old-pass-input">Current Password</label>
+              <input type="password" id="old-pass-input" placeholder="Enter current password" required>
+            </div>
+            <div class="input-group">
+              <label for="new-pass-input">New Password</label>
+              <input type="password" id="new-pass-input" placeholder="Enter new password" required>
+            </div>
+            <div class="input-group">
+              <label for="confirm-new-pass-input">Confirm New Password</label>
+              <input type="password" id="confirm-new-pass-input" placeholder="Confirm new password" required>
+            </div>
+            <button type="button" id="trigger-change-password-btn" class="btn btn-primary btn-sm" style="margin-top: 6px;">Update Password</button>
+          </form>
+
+          <hr class="divider">
+
           <div class="settings-bf-section">
             <h4>Best Friend Status</h4>
             <p class="current-bf-info">Current Best Friend: <strong id="current-bf-display">None</strong></p>
@@ -241,7 +260,7 @@
             <button id="break-friendship-btn" class="btn btn-secondary btn-sm btn-break hidden">Break Friendship Connection</button>
           </div>
 
-          <!-- ADMIN CONTROL PANEL SECTION (Visible only to owner) -->
+          <!-- ADMIN CONTROL PANEL SECTION (Visible only to Owner) -->
           <div id="admin-panel-section" class="admin-box hidden">
             <hr class="divider">
             <h4 style="color: #ff4757;">👑 Owner / Admin Control Panel</h4>
