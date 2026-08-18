@@ -9,9 +9,10 @@ const firebaseConfig = {
   appId: "1:214665486301:web:89288706e422c15f37a034"
 };
 
-// Initialize Firebase Realtime Database with Cloud Only Mode
+// Initialize Firebase Realtime Database
 let dbRef = null;
 let isCloudActive = false;
+let isDataLoaded = false; // Safety lock to prevent accidental initial overwrites
 
 try {
   if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
@@ -33,27 +34,35 @@ let pendingModalAction = null;
 let localUsersDB = {};
 let localQuestionsDB = [];
 
-// Cloud Synchronizer Helper
+// Cloud Synchronizer Helper (Protected against premature wiping)
 function saveAllState() {
-  if (isCloudActive && dbRef) {
+  if (isCloudActive && dbRef && isDataLoaded) {
     dbRef.ref('users').set(localUsersDB);
     dbRef.ref('questions').set(localQuestionsDB);
   }
 }
 
-// Firebase Cloud Realtime Listener
+// REAL-TIME CLOUD LISTENERS WITH ASYNC SESSION HANDLER
 if (isCloudActive && dbRef) {
+  // 1. Users Listener
   dbRef.ref('users').on('value', (snapshot) => {
     const val = snapshot.val();
     localUsersDB = val || {};
+    isDataLoaded = true; // Unlock database saving once cloud data is fetched
     
-    if (currentUser && !localUsersDB[currentUser]) {
+    // Check saved session AFTER cloud data arrives
+    const savedUser = localStorage.getItem(STORAGE_SESSION);
+    if (savedUser && localUsersDB[savedUser]) {
+      currentUser = savedUser;
+      openDashboard();
+    } else if (currentUser && !localUsersDB[currentUser]) {
       logoutUser();
     } else if (currentUser) {
       renderDashboardData();
     }
   });
 
+  // 2. Links & Likes Listener
   dbRef.ref('questions').on('value', (snapshot) => {
     const val = snapshot.val();
     localQuestionsDB = val ? (Array.isArray(val) ? val : Object.values(val)) : [];
@@ -143,12 +152,11 @@ const modalMessage = document.getElementById('modal-message');
 const modalCancelBtn = document.getElementById('modal-cancel-btn');
 const modalConfirmBtn = document.getElementById('modal-confirm-btn');
 
-// Startup Session Load
+// Startup Session Registration
 window.addEventListener('DOMContentLoaded', () => {
   const savedUser = localStorage.getItem(STORAGE_SESSION);
-  if (savedUser && localUsersDB[savedUser]) {
+  if (savedUser) {
     currentUser = savedUser;
-    openDashboard();
   }
 });
 
@@ -704,7 +712,7 @@ modalConfirmBtn.onclick = () => {
   }
 };
 
-// Username Change with Best Friend Notification & Cloud Sync
+// Username Change
 triggerChangeUsernameBtn.addEventListener('click', () => {
   const newName = newUsernameInput.value.trim().toLowerCase();
   const userData = localUsersDB[currentUser] || {};
@@ -737,19 +745,19 @@ function executeUsernameChange(newName, recentChanges, now) {
   delete localUsersDB[oldName];
   localUsersDB[newName] = userData;
 
-  // 2. Update bestfriend references in all users
+  // 2. Update bestfriend references
   Object.keys(localUsersDB).forEach(uname => {
     if (localUsersDB[uname].bestfriend === oldName) {
       localUsersDB[uname].bestfriend = newName;
     }
   });
 
-  // 3. Update author on all submitted question links
+  // 3. Update author on links
   localQuestionsDB.forEach(q => {
     if (q.author === oldName) q.author = newName;
   });
 
-  // 4. Send notification to Best Friend
+  // 4. Notify Best Friend
   const friend = userData.bestfriend;
   if (friend && localUsersDB[friend]) {
     if (!localUsersDB[friend].notifications) localUsersDB[friend].notifications = [];
@@ -832,7 +840,7 @@ function executeBreakFriendship(friend) {
   alert('Connection broken.');
 }
 
-// Account Deletion Trigger with Password Check & Notification
+// Account Deletion Trigger
 toggleDeleteBoxBtn.addEventListener('click', () => {
   deleteAccountFormContainer.classList.toggle('hidden');
 });
@@ -858,7 +866,6 @@ function executeAccountDeletion() {
   const user = localUsersDB[oldName];
   const friend = user ? user.bestfriend : null;
 
-  // 1. Notify Best Friend & unlink
   if (friend && localUsersDB[friend]) {
     localUsersDB[friend].bestfriend = null;
     if (!localUsersDB[friend].notifications) localUsersDB[friend].notifications = [];
@@ -869,28 +876,23 @@ function executeAccountDeletion() {
     });
   }
 
-  // 2. Remove user reference from all bestfriends
   Object.keys(localUsersDB).forEach(uname => {
     if (localUsersDB[uname].bestfriend === oldName) {
       localUsersDB[uname].bestfriend = null;
     }
   });
 
-  // 3. Completely delete all links submitted by this user
   localQuestionsDB = localQuestionsDB.filter(q => q.author !== oldName);
 
-  // 4. Remove likes given by this user from remaining links
   localQuestionsDB.forEach(q => {
     if (q.likes) {
       q.likes = q.likes.filter(liker => liker !== oldName);
     }
   });
 
-  // 5. Delete user record & sync changes to Firebase Cloud
   delete localUsersDB[oldName];
   saveAllState();
 
-  // 6. Reset UI & Logout
   logoutUser();
   alert("Your account and all associated data have been permanently deleted.");
 }
