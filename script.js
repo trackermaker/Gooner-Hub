@@ -9,7 +9,7 @@ const firebaseConfig = {
   appId: "1:214665486301:web:89288706e422c15f37a034"
 };
 
-// Initialize Firebase Realtime Database with Local Storage Fallback Sync
+// Initialize Firebase Realtime Database with Cloud Only Mode
 let dbRef = null;
 let isCloudActive = false;
 
@@ -20,25 +20,21 @@ try {
     isCloudActive = true;
   }
 } catch (e) {
-  console.warn("Firebase not configured or offline. Running on local sync storage mode.");
+  console.warn("Firebase not configured or offline.");
 }
 
 // State Storage Keys
-const STORAGE_DB = 'lc_app_db';
-const STORAGE_LINKS = 'lc_questions_db';
 const STORAGE_SESSION = 'lc_logged_user';
 
 let currentUser = null;
 let currentLinksSubtab = 'all';
 let pendingModalAction = null;
 
-let localUsersDB = JSON.parse(localStorage.getItem(STORAGE_DB) || '{}');
-let localQuestionsDB = JSON.parse(localStorage.getItem(STORAGE_LINKS) || '[]');
+let localUsersDB = {};
+let localQuestionsDB = [];
 
-// Dual Cloud / Local Synchronizer Helpers
+// Cloud Synchronizer Helper
 function saveAllState() {
-  localStorage.setItem(STORAGE_DB, JSON.stringify(localUsersDB));
-  localStorage.setItem(STORAGE_LINKS, JSON.stringify(localQuestionsDB));
   if (isCloudActive && dbRef) {
     dbRef.ref('users').set(localUsersDB);
     dbRef.ref('questions').set(localQuestionsDB);
@@ -49,24 +45,19 @@ function saveAllState() {
 if (isCloudActive && dbRef) {
   dbRef.ref('users').on('value', (snapshot) => {
     const val = snapshot.val();
-    if (val) {
-      localUsersDB = val;
-      localStorage.setItem(STORAGE_DB, JSON.stringify(localUsersDB));
-      if (currentUser && !localUsersDB[currentUser]) {
-        logoutUser();
-      } else if (currentUser) {
-        renderDashboardData();
-      }
+    localUsersDB = val || {};
+    
+    if (currentUser && !localUsersDB[currentUser]) {
+      logoutUser();
+    } else if (currentUser) {
+      renderDashboardData();
     }
   });
 
   dbRef.ref('questions').on('value', (snapshot) => {
     const val = snapshot.val();
-    if (val) {
-      localQuestionsDB = Array.isArray(val) ? val : Object.values(val);
-      localStorage.setItem(STORAGE_LINKS, JSON.stringify(localQuestionsDB));
-      if (currentUser) renderDashboardData();
-    }
+    localQuestionsDB = val ? (Array.isArray(val) ? val : Object.values(val)) : [];
+    if (currentUser) renderDashboardData();
   });
 }
 
