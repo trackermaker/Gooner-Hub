@@ -9,13 +9,13 @@ const firebaseConfig = {
   appId: "1:214665486301:web:89288706e422c15f37a034"
 };
 
-// Master Admin/Owner Account Configuration
-const ADMIN_USERNAME = 'sahil';
+// Master Admin/Owner Account Configuration (Case-insensitive)
+const ADMIN_USERNAME = 'owner';
 
 // Initialize Firebase Realtime Database
 let dbRef = null;
 let isCloudActive = false;
-let isDataLoaded = false; // Safety lock to prevent accidental initial overwrites
+let isDataLoaded = false;
 
 try {
   if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
@@ -41,7 +41,6 @@ let localQuestionsDB = [];
 function containsSahilVariation(str) {
   if (!str) return false;
 
-  // Normalize leetspeak, numbers, and symbols
   let normalized = str.toLowerCase()
     .replace(/@/g, 'a')
     .replace(/4/g, 'a')
@@ -52,13 +51,11 @@ function containsSahilVariation(str) {
     .replace(/5/g, 's')
     .replace(/0/g, 'o');
 
-  // Strip non-alphanumeric characters (spaces, hyphens, underscores, dots)
   let cleanStr = normalized.replace(/[^a-z0-9]/g, '');
-
   return cleanStr.includes('sahil');
 }
 
-// Cloud Synchronizer Helper (Protected against premature wiping)
+// Cloud Synchronizer Helper
 function saveAllState() {
   if (isCloudActive && dbRef && isDataLoaded) {
     dbRef.ref('users').set(localUsersDB);
@@ -66,15 +63,31 @@ function saveAllState() {
   }
 }
 
-// REAL-TIME CLOUD LISTENERS WITH ASYNC SESSION HANDLER
+// Automatically Purge Any Sahil Accounts Existing in Cloud Data
+function autoPurgeSahilAccounts() {
+  let DBChanged = false;
+  Object.keys(localUsersDB).forEach(uname => {
+    if (uname.toLowerCase() !== ADMIN_USERNAME && containsSahilVariation(uname)) {
+      delete localUsersDB[uname];
+      DBChanged = true;
+    }
+  });
+
+  if (DBChanged) {
+    saveAllState();
+  }
+}
+
+// REAL-TIME CLOUD LISTENERS
 if (isCloudActive && dbRef) {
-  // 1. Users Listener
   dbRef.ref('users').on('value', (snapshot) => {
     const val = snapshot.val();
     localUsersDB = val || {};
-    isDataLoaded = true; // Unlock database saving once cloud data is fetched
+    isDataLoaded = true;
     
-    // Check saved session AFTER cloud data arrives
+    // Purge any accounts matching 'sahil' variations
+    autoPurgeSahilAccounts();
+
     const savedUser = localStorage.getItem(STORAGE_SESSION);
     if (savedUser && localUsersDB[savedUser]) {
       currentUser = savedUser;
@@ -86,7 +99,6 @@ if (isCloudActive && dbRef) {
     }
   });
 
-  // 2. Links & Likes Listener
   dbRef.ref('questions').on('value', (snapshot) => {
     const val = snapshot.val();
     localQuestionsDB = val ? (Array.isArray(val) ? val : Object.values(val)) : [];
@@ -160,6 +172,8 @@ const newUsernameInput = document.getElementById('new-username-input');
 const newUserStatus = document.getElementById('new-user-status');
 const triggerChangeUsernameBtn = document.getElementById('trigger-change-username-btn');
 
+const triggerChangePasswordBtn = document.getElementById('trigger-change-password-btn');
+
 const currentBfDisplay = document.getElementById('current-bf-display');
 const newBfInput = document.getElementById('new-bf-input');
 const triggerChangeBfBtn = document.getElementById('trigger-change-bf-btn');
@@ -176,7 +190,6 @@ const modalMessage = document.getElementById('modal-message');
 const modalCancelBtn = document.getElementById('modal-cancel-btn');
 const modalConfirmBtn = document.getElementById('modal-confirm-btn');
 
-// Admin System DOM Element
 const adminPanelSection = document.getElementById('admin-panel-section');
 const triggerAdminDeleteBtn = document.getElementById('trigger-admin-delete-btn');
 
@@ -262,9 +275,9 @@ function validateUsernameInput(val, statusElement) {
     return;
   }
 
-  // Allow the legitimate master admin account "sahil", block all other variations
+  // Block any "sahil" variation
   if (username.toLowerCase() !== ADMIN_USERNAME && containsSahilVariation(username)) {
-    statusElement.textContent = '❌ Username contains a restricted/reserved name.';
+    statusElement.textContent = '❌ Restricted username phrase.';
     statusElement.className = 'status-hint invalid';
     return;
   }
@@ -307,9 +320,8 @@ registerForm.addEventListener('submit', (e) => {
     return;
   }
 
-  // Guard against restricted name variations
   if (lowerName !== ADMIN_USERNAME && containsSahilVariation(username)) {
-    showMessage('Username contains a restricted/reserved name.', 'error');
+    showMessage('Restricted username phrase.', 'error');
     return;
   }
 
@@ -459,9 +471,9 @@ function renderDashboardData() {
 
   userSolvedDisplay.textContent = user.solved || 0;
 
-  // Reveal Admin Control Panel exclusively to the master admin
+  // Reveal Admin Control Panel exclusively to the Owner account
   if (adminPanelSection) {
-    adminPanelSection.classList.toggle('hidden', currentUser !== ADMIN_USERNAME);
+    adminPanelSection.classList.toggle('hidden', currentUser.toLowerCase() !== ADMIN_USERNAME);
   }
 
   const currentBf = user.bestfriend;
@@ -767,9 +779,9 @@ triggerChangeUsernameBtn.addEventListener('click', () => {
   const userData = localUsersDB[currentUser] || {};
 
   if (newName.length < 5) return alert('Username must be at least 5 characters long.');
-  
+
   if (lowerNewName !== ADMIN_USERNAME && containsSahilVariation(newName)) {
-    return alert('Username contains a restricted/reserved name.');
+    return alert('Restricted username phrase.');
   }
 
   if (localUsersDB[lowerNewName]) return alert('Username already taken.');
@@ -795,23 +807,19 @@ function executeUsernameChange(newName, recentChanges, now) {
   const userData = localUsersDB[oldName];
   userData.usernameChanges = recentChanges;
 
-  // 1. Transfer user record
   delete localUsersDB[oldName];
   localUsersDB[newName] = userData;
 
-  // 2. Update bestfriend references
   Object.keys(localUsersDB).forEach(uname => {
     if (localUsersDB[uname].bestfriend === oldName) {
       localUsersDB[uname].bestfriend = newName;
     }
   });
 
-  // 3. Update author on links
   localQuestionsDB.forEach(q => {
     if (q.author === oldName) q.author = newName;
   });
 
-  // 4. Notify Best Friend
   const friend = userData.bestfriend;
   if (friend && localUsersDB[friend]) {
     if (!localUsersDB[friend].notifications) localUsersDB[friend].notifications = [];
@@ -832,6 +840,37 @@ function executeUsernameChange(newName, recentChanges, now) {
   userDisplay.textContent = currentUser;
   renderDashboardData();
   alert('Username updated successfully!');
+}
+
+// --- CHANGE PASSWORD FEATURE HANDLER ---
+if (triggerChangePasswordBtn) {
+  triggerChangePasswordBtn.addEventListener('click', () => {
+    const oldPass = document.getElementById('old-pass-input').value;
+    const newPass = document.getElementById('new-pass-input').value;
+    const confirmPass = document.getElementById('confirm-new-pass-input').value;
+    const user = localUsersDB[currentUser];
+
+    if (!user || user.password !== oldPass) {
+      return alert("Incorrect current password verification.");
+    }
+
+    if (!newPass) {
+      return alert("New password cannot be empty.");
+    }
+
+    if (newPass !== confirmPass) {
+      return alert("New passwords do not match.");
+    }
+
+    user.password = newPass;
+    saveAllState();
+
+    document.getElementById('old-pass-input').value = '';
+    document.getElementById('new-pass-input').value = '';
+    document.getElementById('confirm-new-pass-input').value = '';
+    
+    alert("Password updated successfully!");
+  });
 }
 
 // Best Friend Request Trigger
@@ -897,7 +936,7 @@ function executeBreakFriendship(friend) {
 // --- ADMIN FORCE DELETE MECHANISM ---
 if (triggerAdminDeleteBtn) {
   triggerAdminDeleteBtn.addEventListener('click', () => {
-    if (currentUser !== ADMIN_USERNAME) {
+    if (currentUser.toLowerCase() !== ADMIN_USERNAME) {
       alert("Unauthorized action! Only the site owner can access this command.");
       return;
     }
@@ -931,7 +970,6 @@ function executeAdminForceDeletion(targetUser) {
   const userObj = localUsersDB[targetUser];
   const friend = userObj ? userObj.bestfriend : null;
 
-  // 1. Notify best friend & break link
   if (friend && localUsersDB[friend]) {
     localUsersDB[friend].bestfriend = null;
     if (!localUsersDB[friend].notifications) localUsersDB[friend].notifications = [];
@@ -942,24 +980,20 @@ function executeAdminForceDeletion(targetUser) {
     });
   }
 
-  // 2. Unlink from all other friends
   Object.keys(localUsersDB).forEach(uname => {
     if (localUsersDB[uname].bestfriend === targetUser) {
       localUsersDB[uname].bestfriend = null;
     }
   });
 
-  // 3. Purge target user's links
   localQuestionsDB = localQuestionsDB.filter(q => q.author !== targetUser);
 
-  // 4. Remove likes given by this target user
   localQuestionsDB.forEach(q => {
     if (q.likes) {
       q.likes = q.likes.filter(liker => liker !== targetUser);
     }
   });
 
-  // 5. Delete user object & save state
   delete localUsersDB[targetUser];
   saveAllState();
 
