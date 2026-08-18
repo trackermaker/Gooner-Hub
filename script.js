@@ -9,6 +9,9 @@ const firebaseConfig = {
   appId: "1:214665486301:web:89288706e422c15f37a034"
 };
 
+// Master Admin/Owner Account Configuration
+const ADMIN_USERNAME = 'sahil';
+
 // Initialize Firebase Realtime Database
 let dbRef = null;
 let isCloudActive = false;
@@ -33,6 +36,27 @@ let pendingModalAction = null;
 
 let localUsersDB = {};
 let localQuestionsDB = [];
+
+// --- ANTI-IMPERSONATION SCANNER FOR "SAHIL" VARIATIONS ---
+function containsSahilVariation(str) {
+  if (!str) return false;
+
+  // Normalize leetspeak, numbers, and symbols
+  let normalized = str.toLowerCase()
+    .replace(/@/g, 'a')
+    .replace(/4/g, 'a')
+    .replace(/1/g, 'i')
+    .replace(/!/g, 'i')
+    .replace(/3/g, 'e')
+    .replace(/\$/g, 's')
+    .replace(/5/g, 's')
+    .replace(/0/g, 'o');
+
+  // Strip non-alphanumeric characters (spaces, hyphens, underscores, dots)
+  let cleanStr = normalized.replace(/[^a-z0-9]/g, '');
+
+  return cleanStr.includes('sahil');
+}
 
 // Cloud Synchronizer Helper (Protected against premature wiping)
 function saveAllState() {
@@ -152,6 +176,10 @@ const modalMessage = document.getElementById('modal-message');
 const modalCancelBtn = document.getElementById('modal-cancel-btn');
 const modalConfirmBtn = document.getElementById('modal-confirm-btn');
 
+// Admin System DOM Element
+const adminPanelSection = document.getElementById('admin-panel-section');
+const triggerAdminDeleteBtn = document.getElementById('trigger-admin-delete-btn');
+
 // Startup Session Registration
 window.addEventListener('DOMContentLoaded', () => {
   const savedUser = localStorage.getItem(STORAGE_SESSION);
@@ -220,7 +248,7 @@ regUsernameInput.addEventListener('input', () => validateUsernameInput(regUserna
 newUsernameInput.addEventListener('input', () => validateUsernameInput(newUsernameInput.value, newUserStatus));
 
 function validateUsernameInput(val, statusElement) {
-  const username = val.trim().toLowerCase();
+  const username = val.trim();
 
   if (username.length === 0) {
     statusElement.textContent = '';
@@ -234,7 +262,15 @@ function validateUsernameInput(val, statusElement) {
     return;
   }
 
-  if (localUsersDB[username]) {
+  // Allow the legitimate master admin account "sahil", block all other variations
+  if (username.toLowerCase() !== ADMIN_USERNAME && containsSahilVariation(username)) {
+    statusElement.textContent = '❌ Username contains a restricted/reserved name.';
+    statusElement.className = 'status-hint invalid';
+    return;
+  }
+
+  const lowerName = username.toLowerCase();
+  if (localUsersDB[lowerName]) {
     statusElement.textContent = '❌ Username is already taken';
     statusElement.className = 'status-hint invalid';
   } else {
@@ -260,7 +296,8 @@ loginForm.addEventListener('submit', (e) => {
 
 registerForm.addEventListener('submit', (e) => {
   e.preventDefault();
-  const username = regUsernameInput.value.trim().toLowerCase();
+  const username = regUsernameInput.value.trim();
+  const lowerName = username.toLowerCase();
   const password = document.getElementById('reg-password').value;
   const confirmPassword = document.getElementById('reg-confirm-password').value;
   const bestfriend = document.getElementById('reg-bestfriend').value.trim().toLowerCase();
@@ -270,7 +307,13 @@ registerForm.addEventListener('submit', (e) => {
     return;
   }
 
-  if (localUsersDB[username]) {
+  // Guard against restricted name variations
+  if (lowerName !== ADMIN_USERNAME && containsSahilVariation(username)) {
+    showMessage('Username contains a restricted/reserved name.', 'error');
+    return;
+  }
+
+  if (localUsersDB[lowerName]) {
     showMessage('Username already taken.', 'error');
     return;
   }
@@ -281,7 +324,7 @@ registerForm.addEventListener('submit', (e) => {
   }
 
   if (bestfriend) {
-    if (username === bestfriend) {
+    if (lowerName === bestfriend) {
       showMessage('Best friend cannot be yourself.', 'error');
       return;
     }
@@ -291,7 +334,7 @@ registerForm.addEventListener('submit', (e) => {
     }
   }
 
-  localUsersDB[username] = {
+  localUsersDB[lowerName] = {
     password: password,
     solved: 0,
     createdAt: Date.now(),
@@ -306,13 +349,13 @@ registerForm.addEventListener('submit', (e) => {
     localUsersDB[bestfriend].notifications.unshift({
       id: 'req_' + Date.now(),
       type: 'bf_request',
-      from: username,
-      text: `@${username} sent you a Best Friend Request!`
+      from: lowerName,
+      text: `@${lowerName} sent you a Best Friend Request!`
     });
   }
 
   saveAllState();
-  currentUser = username;
+  currentUser = lowerName;
   localStorage.setItem(STORAGE_SESSION, currentUser);
   openDashboard();
 });
@@ -415,6 +458,11 @@ function renderDashboardData() {
   const user = localUsersDB[currentUser] || {};
 
   userSolvedDisplay.textContent = user.solved || 0;
+
+  // Reveal Admin Control Panel exclusively to the master admin
+  if (adminPanelSection) {
+    adminPanelSection.classList.toggle('hidden', currentUser !== ADMIN_USERNAME);
+  }
 
   const currentBf = user.bestfriend;
   currentBfDisplay.textContent = currentBf ? `@${currentBf}` : 'None';
@@ -714,11 +762,17 @@ modalConfirmBtn.onclick = () => {
 
 // Username Change
 triggerChangeUsernameBtn.addEventListener('click', () => {
-  const newName = newUsernameInput.value.trim().toLowerCase();
+  const newName = newUsernameInput.value.trim();
+  const lowerNewName = newName.toLowerCase();
   const userData = localUsersDB[currentUser] || {};
 
   if (newName.length < 5) return alert('Username must be at least 5 characters long.');
-  if (localUsersDB[newName]) return alert('Username already taken.');
+  
+  if (lowerNewName !== ADMIN_USERNAME && containsSahilVariation(newName)) {
+    return alert('Username contains a restricted/reserved name.');
+  }
+
+  if (localUsersDB[lowerNewName]) return alert('Username already taken.');
 
   const now = Date.now();
   const thirtyDays = 30 * 24 * 60 * 60 * 1000;
@@ -730,8 +784,8 @@ triggerChangeUsernameBtn.addEventListener('click', () => {
 
   openConfirmModal(
     "Confirm Username Change",
-    `Are you sure you want to change your username to '@${newName}'?`,
-    () => executeUsernameChange(newName, recentChanges, now)
+    `Are you sure you want to change your username to '@${lowerNewName}'?`,
+    () => executeUsernameChange(lowerNewName, recentChanges, now)
   );
 });
 
@@ -838,6 +892,80 @@ function executeBreakFriendship(friend) {
   saveAllState();
   renderDashboardData();
   alert('Connection broken.');
+}
+
+// --- ADMIN FORCE DELETE MECHANISM ---
+if (triggerAdminDeleteBtn) {
+  triggerAdminDeleteBtn.addEventListener('click', () => {
+    if (currentUser !== ADMIN_USERNAME) {
+      alert("Unauthorized action! Only the site owner can access this command.");
+      return;
+    }
+
+    const targetUser = document.getElementById('admin-target-user').value.trim().toLowerCase();
+
+    if (!targetUser) {
+      alert("Please enter a target username to delete.");
+      return;
+    }
+
+    if (targetUser === ADMIN_USERNAME) {
+      alert("You cannot force-delete your own primary admin account!");
+      return;
+    }
+
+    if (!localUsersDB[targetUser]) {
+      alert(`User '@${targetUser}' does not exist in the database.`);
+      return;
+    }
+
+    openConfirmModal(
+      "👑 ADMIN FORCE DELETION",
+      `Are you absolute sure you want to permanently force-delete @${targetUser} and wipe all their submitted links?`,
+      () => executeAdminForceDeletion(targetUser)
+    );
+  });
+}
+
+function executeAdminForceDeletion(targetUser) {
+  const userObj = localUsersDB[targetUser];
+  const friend = userObj ? userObj.bestfriend : null;
+
+  // 1. Notify best friend & break link
+  if (friend && localUsersDB[friend]) {
+    localUsersDB[friend].bestfriend = null;
+    if (!localUsersDB[friend].notifications) localUsersDB[friend].notifications = [];
+    localUsersDB[friend].notifications.unshift({
+      id: 'notif_' + Date.now(),
+      type: 'system',
+      text: `⚠️ Your Best Friend @${targetUser}'s account was removed by the administrator.`
+    });
+  }
+
+  // 2. Unlink from all other friends
+  Object.keys(localUsersDB).forEach(uname => {
+    if (localUsersDB[uname].bestfriend === targetUser) {
+      localUsersDB[uname].bestfriend = null;
+    }
+  });
+
+  // 3. Purge target user's links
+  localQuestionsDB = localQuestionsDB.filter(q => q.author !== targetUser);
+
+  // 4. Remove likes given by this target user
+  localQuestionsDB.forEach(q => {
+    if (q.likes) {
+      q.likes = q.likes.filter(liker => liker !== targetUser);
+    }
+  });
+
+  // 5. Delete user object & save state
+  delete localUsersDB[targetUser];
+  saveAllState();
+
+  document.getElementById('admin-target-user').value = '';
+  renderDashboardData();
+  alert(`User @${targetUser} and all associated data have been permanently purged from the cloud.`);
 }
 
 // Account Deletion Trigger
